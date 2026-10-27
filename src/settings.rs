@@ -362,7 +362,7 @@ pub struct Settings {
     pub mac_notch_widget: bool,
     /// Show the current lyric in a separate macOS menu-bar item.
     pub mac_menu_bar_lyrics: bool,
-    /// Supply lyrics to the optional Pock Touch Bar widget.
+    /// Show the current lyric in the macOS Touch Bar.
     pub mac_touch_bar_lyrics: bool,
     /// macOS: keep Spotifast in the Dock and Cmd-Tab. Off makes it a
     /// menu-bar app, whose menu-bar icon is the way back (#837).

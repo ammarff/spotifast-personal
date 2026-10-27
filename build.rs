@@ -46,6 +46,34 @@ fn main() {
     #[cfg(feature = "soloist-native-audio")]
     native_soloist_audio();
     fastframe_i18n::build::compile_catalogs("assets/i18n");
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        let out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));
+        let object = out.join("mac_touch_bar.o");
+        let library = out.join("libspotifast_touch_bar.a");
+        println!("cargo:rerun-if-changed=src/mac_touch_bar.m");
+        let compile = std::process::Command::new("clang")
+            .args(["-fobjc-arc", "-fblocks", "-c", "src/mac_touch_bar.m", "-o"])
+            .arg(&object)
+            .status()
+            .expect("compile the macOS Touch Bar bridge");
+        assert!(
+            compile.success(),
+            "the macOS Touch Bar bridge did not compile"
+        );
+        let archive = std::process::Command::new("ar")
+            .arg("crs")
+            .arg(&library)
+            .arg(&object)
+            .status()
+            .expect("archive the macOS Touch Bar bridge");
+        assert!(
+            archive.success(),
+            "the macOS Touch Bar bridge was not archived"
+        );
+        println!("cargo:rustc-link-search=native={}", out.display());
+        println!("cargo:rustc-link-lib=static=spotifast_touch_bar");
+        println!("cargo:rustc-link-lib=framework=AppKit");
+    }
     #[cfg(windows)]
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         println!("cargo:rerun-if-changed=packaging/windows/spotifast.ico");

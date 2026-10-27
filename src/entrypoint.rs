@@ -171,8 +171,6 @@ enum Control {
         #[arg(long)]
         raw: bool,
     },
-    /// Print the current lyric display snapshot as JSON for a local widget
-    Lyrics,
     /// Bring the window of the running instance forward
     Show,
     /// Reload local palette files without starting the app or interrupting playback
@@ -208,7 +206,7 @@ enum Repeat {
 fn run_control(control: Control) -> i32 {
     let raw = matches!(
         control,
-        Control::NowPlaying { raw: true } | Control::Devices { raw: true } | Control::Lyrics
+        Control::NowPlaying { raw: true } | Control::Devices { raw: true }
     );
     let verb = match control {
         Control::PlayPause => "playpause".to_owned(),
@@ -253,7 +251,6 @@ fn run_control(control: Control) -> i32 {
         Control::Devices { .. } => "devices".to_owned(),
         Control::Transfer { device_id } => format!("transfer {device_id}"),
         Control::NowPlaying { .. } => "nowplaying".to_owned(),
-        Control::Lyrics => "lyrics".to_owned(),
         Control::Show => "show".to_owned(),
         Control::ReloadThemes => "reload-themes".to_owned(),
     };
@@ -273,7 +270,6 @@ fn run_control(control: Control) -> i32 {
                 format_devices(&snapshot)
             }
         }
-        Ok(single_instance::Reply::Lyrics(snapshot)) => format!("{snapshot}\n"),
         Err(error) => {
             eprintln!("Spotifast is not running or does not support remote control: {error}");
             return 1;

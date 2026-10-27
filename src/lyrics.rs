@@ -87,15 +87,6 @@ impl Lyrics {
             .find(|line| !line.text.trim().is_empty())
             .map(|line| line.text.as_str())
     }
-
-    /// Next timed transition for an external display's local clock.
-    pub fn next_line_at(&self, position_ms: u32) -> Option<(u32, &str)> {
-        self.synced.then_some(())?;
-        self.lines
-            .iter()
-            .find(|line| line.at_ms.is_some_and(|at| at > position_ms))
-            .and_then(|line| line.at_ms.map(|at| (at, line.text.as_str())))
-    }
 }
 
 /// Parses Spotify's `color-lyrics` response.
@@ -1110,13 +1101,11 @@ mod tests {
         assert_eq!(timed.display_line(999), None);
         assert_eq!(timed.display_line(1500), Some("first"));
         assert_eq!(timed.display_line(2500), Some(""));
-        assert_eq!(timed.next_line_at(1500), Some((2000, "")));
         let plain = Lyrics {
             synced: false,
             ..timed.clone()
         };
         assert_eq!(plain.display_line(99000), Some("first"));
-        assert_eq!(plain.next_line_at(0), None);
         let instrumental = Lyrics {
             instrumental: true,
             ..timed

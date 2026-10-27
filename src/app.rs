@@ -425,8 +425,6 @@ pub struct App {
     control_commands: Option<std::sync::Arc<std::sync::Mutex<Vec<ControlCommand>>>>,
     /// Now-playing snapshot for the control channel.
     control_now_playing: Option<std::sync::Arc<std::sync::Mutex<String>>>,
-    /// Lyric snapshot read by the optional Pock widget through the local channel.
-    control_lyrics: Option<std::sync::Arc<std::sync::Mutex<String>>>,
     /// The same, for its `devices` verb.
     control_devices: Option<std::sync::Arc<std::sync::Mutex<String>>>,
     /// Whether that device slot still matches [`Self::devices`]. The
@@ -1167,7 +1165,6 @@ impl App {
             switch_intent: false,
             control_commands: None,
             control_now_playing: None,
-            control_lyrics: None,
             control_devices: None,
             control_devices_stale: true,
             offline: false,
@@ -1438,7 +1435,6 @@ impl App {
     pub fn set_remote_control(&mut self, guard: &crate::single_instance::Guard) {
         self.control_commands = Some(guard.commands());
         self.control_now_playing = Some(guard.now_playing_slot());
-        self.control_lyrics = Some(guard.lyrics_slot());
         self.control_devices = Some(guard.devices_slot());
     }
 
@@ -4171,6 +4167,7 @@ impl App {
     fn sync_lyrics_surfaces(&mut self) {
         if !(self.settings.mac_menu_bar_lyrics || self.settings.mac_touch_bar_lyrics) {
             crate::mac_lyrics_status::sync(false, None);
+            crate::mac_touch_bar::sync(false, None);
             return;
         }
         if let Some(now) = self.now_playing()
@@ -4184,6 +4181,7 @@ impl App {
                 .map(str::to_owned)
         });
         crate::mac_lyrics_status::sync(self.settings.mac_menu_bar_lyrics, line.as_deref());
+        crate::mac_touch_bar::sync(self.settings.mac_touch_bar_lyrics, line.as_deref());
     }
 
     fn lyrics_for_display(&self, now: &NowPlaying) -> Option<&crate::lyrics::Lyrics> {
@@ -4194,35 +4192,6 @@ impl App {
             Loadable::Loaded(Some(lyrics)) => Some(lyrics),
             _ => None,
         }
-    }
-
-    /// One line of JSON for local consumers. It never includes credentials.
-    fn control_lyrics_snapshot(&self) -> String {
-        if !cfg!(target_os = "macos") || !self.settings.mac_touch_bar_lyrics {
-            return crate::single_instance::NO_LYRICS.to_owned();
-        }
-        let Some(now) = self.now_playing() else {
-            return r#"{"enabled":true}"#.to_owned();
-        };
-        let lyrics = self.lyrics_for_display(&now);
-        let (next_at_ms, next) = lyrics
-            .and_then(|lyrics| lyrics.next_line_at(now.position_ms))
-            .map_or((None, None), |(at, text)| (Some(at), Some(text)));
-        let sampled_at_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis();
-        serde_json::json!({
-            "enabled": true,
-            "uri": now.uri,
-            "playing": now.playing,
-            "position_ms": now.position_ms,
-            "sampled_at_ms": sampled_at_ms,
-            "current": lyrics.and_then(|lyrics| lyrics.display_line(now.position_ms)),
-            "next_at_ms": next_at_ms,
-            "next": next,
-        })
-        .to_string()
     }
 
     /// Pushes the Winamp window's always-on-top level to the live window.
@@ -5204,10 +5173,6 @@ impl App {
         crate::mac_menu::set_playing(playing);
         if let Some(slot) = &self.control_now_playing {
             let snapshot = self.control_snapshot();
-            *slot.lock().unwrap_or_else(|p| p.into_inner()) = snapshot;
-        }
-        if let Some(slot) = &self.control_lyrics {
-            let snapshot = self.control_lyrics_snapshot();
             *slot.lock().unwrap_or_else(|p| p.into_inner()) = snapshot;
         }
         if self.control_devices_stale
@@ -26201,26 +26166,16 @@ mod tests {
 
     #[cfg(all(target_os = "macos", feature = "demo"))]
     #[test]
-    fn touch_bar_snapshot_never_shows_lyrics_from_an_old_track() {
+    fn compact_display_never_shows_lyrics_from_an_old_track() {
         let mut app = headless_app();
         crate::demo::populate(&mut app);
         crate::demo::apply_flags(&mut app, None, Some("lyrics"));
         app.show_lyrics_panel = false;
-        assert_eq!(
-            app.control_lyrics_snapshot(),
-            crate::single_instance::NO_LYRICS
-        );
-
-        app.settings.mac_touch_bar_lyrics = true;
-        let live: serde_json::Value = serde_json::from_str(&app.control_lyrics_snapshot()).unwrap();
-        assert_eq!(live["enabled"], true);
-        assert!(live["current"].is_string());
+        let now = app.now_playing().unwrap();
+        assert!(app.lyrics_for_display(&now).is_some());
 
         app.lyrics_uri = Some("spotify:track:old".into());
-        let stale: serde_json::Value =
-            serde_json::from_str(&app.control_lyrics_snapshot()).unwrap();
-        assert!(stale["current"].is_null());
-        assert!(stale["next"].is_null());
+        assert!(app.lyrics_for_display(&now).is_none());
     }
 
     /// Settings takes Spotifast out of the Dock only while its menu-bar

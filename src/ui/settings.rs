@@ -843,7 +843,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         .when(cfg!(target_os = "macos")),
         RowText::new(
             gettext(locale, "Lyrics in Touch Bar"),
-            gettext(locale, "Supply lyrics to the optional Spotifast widget for Pock."),
+            gettext(locale, "Show the current lyric in the MacBook Touch Bar."),
         )
         .when(cfg!(target_os = "macos")),
     ];
