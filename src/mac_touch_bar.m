@@ -5,6 +5,154 @@
 #import <AppKit/AppKit.h>
 #import <dlfcn.h>
 #import <dispatch/dispatch.h>
+#import <math.h>
+
+// Both surfaces use the same clock. Returning a pixel offset instead of a
+// substring lets AppKit lay out Unicode and right-to-left text intact.
+double spotifast_marquee_offset(double overflow, double viewport,
+                                double elapsed, int reducedMotion) {
+    if (overflow <= 0 || viewport <= 0) return 0;
+    if (reducedMotion) {
+        double page = fmax(1, viewport - 20);
+        double pages = ceil(overflow / page) + 1;
+        double index = floor(fmax(0, elapsed) / 2.5);
+        return fmin(overflow, fmod(index, pages) * page);
+    }
+    const double pause = 0.8;
+    const double speed = 60;
+    double travel = overflow / speed;
+    double phase = fmod(fmax(0, elapsed), travel + 2 * pause);
+    if (phase < pause) return 0;
+    return fmin(overflow, (phase - pause) * speed);
+}
+
+@interface SpotifastMarqueeView : NSView
+@property(nonatomic, strong) NSTextField *label;
+@property(nonatomic, strong) NSTimer *timer;
+@property(nonatomic, copy) NSString *line;
+@property(nonatomic) CGFloat textWidth;
+@property(nonatomic) CGFloat previousWidth;
+@property(nonatomic) NSTimeInterval started;
+@property(nonatomic) BOOL reducedMotion;
+- (instancetype)initWithFrame:(NSRect)frame font:(NSFont *)font;
+- (void)showLine:(NSString *)line reducedMotion:(BOOL)reducedMotion;
+@end
+
+static NSStatusItem *lyricStatusItem;
+static SpotifastMarqueeView *lyricStatusView;
+
+void spotifast_menu_lyrics_sync(int enabled, const char *line, int reducedMotion) {
+    if (![NSThread isMainThread]) return;
+    @autoreleasepool {
+        NSString *text = line ? [NSString stringWithUTF8String:line] : nil;
+        if (!enabled || text.length == 0) {
+            [lyricStatusView showLine:@"" reducedMotion:reducedMotion != 0];
+            lyricStatusItem.visible = NO;
+            return;
+        }
+        if (!lyricStatusItem) {
+            lyricStatusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:28];
+            NSStatusBarButton *button = lyricStatusItem.button;
+            button.title = @"";
+            lyricStatusView = [[SpotifastMarqueeView alloc]
+                initWithFrame:button.bounds font:[NSFont systemFontOfSize:13]];
+            lyricStatusView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+            [button addSubview:lyricStatusView];
+        }
+        if (![lyricStatusView.line isEqualToString:text]) {
+            CGFloat textWidth = ceil([text sizeWithAttributes:@{
+                NSFontAttributeName: lyricStatusView.label.font
+            }].width) + 8;
+            lyricStatusItem.length = fmin(220, fmax(28, textWidth + 20));
+            lyricStatusView.frame = lyricStatusItem.button.bounds;
+        }
+        [lyricStatusView showLine:text reducedMotion:reducedMotion != 0];
+        lyricStatusItem.button.toolTip = text;
+        lyricStatusView.toolTip = text;
+        lyricStatusItem.visible = YES;
+    }
+}
+
+@implementation SpotifastMarqueeView
+
+- (instancetype)initWithFrame:(NSRect)frame font:(NSFont *)font {
+    self = [super initWithFrame:frame];
+    if (!self) return nil;
+    self.clipsToBounds = YES;
+    self.line = @"";
+    self.label = [NSTextField labelWithString:@""];
+    self.label.font = font;
+    self.label.textColor = [NSColor labelColor];
+    self.label.lineBreakMode = NSLineBreakByClipping;
+    self.label.maximumNumberOfLines = 1;
+    self.label.cell.baseWritingDirection = NSWritingDirectionNatural;
+    [self addSubview:self.label];
+    return self;
+}
+
+- (void)dealloc {
+    [self.timer invalidate];
+}
+
+- (void)showLine:(NSString *)line reducedMotion:(BOOL)reducedMotion {
+    BOOL changed = ![self.line isEqualToString:line];
+    if (changed) {
+        self.line = [line copy];
+        self.label.stringValue = line;
+        self.textWidth = ceil([line sizeWithAttributes:@{
+            NSFontAttributeName: self.label.font
+        }].width) + 8;
+        self.started = [NSProcessInfo processInfo].systemUptime;
+        self.accessibilityLabel = line;
+    }
+    BOOL motionChanged = self.reducedMotion != reducedMotion;
+    if (motionChanged) {
+        self.reducedMotion = reducedMotion;
+        self.started = [NSProcessInfo processInfo].systemUptime;
+        [self.timer invalidate];
+        self.timer = nil;
+    }
+    if (changed || motionChanged) [self updatePosition];
+}
+
+- (void)layout {
+    [super layout];
+    CGFloat width = self.bounds.size.width;
+    if (width != self.previousWidth) {
+        self.previousWidth = width;
+        self.started = [NSProcessInfo processInfo].systemUptime;
+        [self updatePosition];
+    }
+}
+
+- (void)updatePosition {
+    CGFloat width = self.bounds.size.width;
+    CGFloat viewport = fmax(0, width - 16);
+    CGFloat overflow = fmax(0, self.textWidth - viewport);
+    if (overflow > 0 && self.line.length > 0) {
+        if (!self.timer) {
+            __weak SpotifastMarqueeView *weakSelf = self;
+            self.timer = [NSTimer timerWithTimeInterval:self.reducedMotion ? 0.25 : 1.0 / 30.0
+                repeats:YES
+                block:^(NSTimer *timer) {
+                    (void)timer;
+                    [weakSelf updatePosition];
+                }];
+            [[NSRunLoop mainRunLoop] addTimer:self.timer forMode:NSRunLoopCommonModes];
+        }
+    } else if (self.timer) {
+        [self.timer invalidate];
+        self.timer = nil;
+    }
+    double elapsed = [NSProcessInfo processInfo].systemUptime - self.started;
+    CGFloat offset = spotifast_marquee_offset(overflow, viewport, elapsed,
+                                              self.reducedMotion);
+    CGFloat x = overflow > 0 ? 8 - offset : (width - self.textWidth) / 2;
+    self.label.frame = NSMakeRect(x, (self.bounds.size.height - 22) / 2,
+                                  self.textWidth, 22);
+}
+
+@end
 
 @interface NSTouchBar (SpotifastSystemModal)
 + (void)presentSystemModalTouchBar:(NSTouchBar *)bar
@@ -53,10 +201,10 @@ static NSTouchBarItemIdentifier const trayIdentifier = @"rocks.spotifast.lyrics.
 
 @interface SpotifastTouchBar : NSObject <NSTouchBarDelegate>
 @property(nonatomic, strong) NSTouchBar *bar;
-@property(nonatomic, strong) NSTextField *label;
+@property(nonatomic, strong) SpotifastMarqueeView *marquee;
 @property(nonatomic, strong) NSCustomTouchBarItem *trayItem;
 @property(nonatomic, strong) id activationObserver;
-- (void)showLine:(NSString *)line;
+- (void)showLine:(NSString *)line reducedMotion:(BOOL)reducedMotion;
 - (void)tearDown;
 @end
 
@@ -66,12 +214,9 @@ static NSTouchBarItemIdentifier const trayIdentifier = @"rocks.spotifast.lyrics.
     self = [super init];
     if (!self) return nil;
 
-    self.label = [NSTextField labelWithString:@""];
-    self.label.frame = NSMakeRect(8, 4, 634, 22);
-    self.label.autoresizingMask = NSViewWidthSizable;
-    self.label.alignment = NSTextAlignmentCenter;
-    self.label.lineBreakMode = NSLineBreakByTruncatingTail;
-    self.label.font = [NSFont systemFontOfSize:14 weight:NSFontWeightMedium];
+    self.marquee = [[SpotifastMarqueeView alloc]
+        initWithFrame:NSMakeRect(0, 0, 650, 30)
+                 font:[NSFont systemFontOfSize:14 weight:NSFontWeightMedium]];
     self.bar = [NSTouchBar new];
     self.bar.delegate = self;
     self.bar.defaultItemIdentifiers = @[lyricIdentifier];
@@ -104,9 +249,7 @@ static NSTouchBarItemIdentifier const trayIdentifier = @"rocks.spotifast.lyrics.
     (void)bar;
     if (![identifier isEqualToString:lyricIdentifier]) return nil;
     NSCustomTouchBarItem *item = [[NSCustomTouchBarItem alloc] initWithIdentifier:identifier];
-    NSView *container = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 650, 30)];
-    [container addSubview:self.label];
-    item.view = container;
+    item.view = self.marquee;
     item.customizationLabel = @"Spotifast Lyrics";
     return item;
 }
@@ -122,13 +265,12 @@ static NSTouchBarItemIdentifier const trayIdentifier = @"rocks.spotifast.lyrics.
     [self present];
 }
 
-- (void)showLine:(NSString *)line {
-    if (![self.label.stringValue isEqualToString:line]) {
-        self.label.stringValue = line;
-    }
+- (void)showLine:(NSString *)line reducedMotion:(BOOL)reducedMotion {
+    [self.marquee showLine:line reducedMotion:reducedMotion];
 }
 
 - (void)tearDown {
+    [self.marquee showLine:@"" reducedMotion:NO];
     if (self.activationObserver) {
         [[NSWorkspace sharedWorkspace].notificationCenter
             removeObserver:self.activationObserver];
@@ -142,7 +284,7 @@ static NSTouchBarItemIdentifier const trayIdentifier = @"rocks.spotifast.lyrics.
 
 @end
 
-void spotifast_touch_bar_sync(int enabled, const char *line) {
+void spotifast_touch_bar_sync(int enabled, const char *line, int reducedMotion) {
     if (![NSThread isMainThread]) return;
     static SpotifastTouchBar *presenter;
     @autoreleasepool {
@@ -154,6 +296,6 @@ void spotifast_touch_bar_sync(int enabled, const char *line) {
         if (!privateAPIAvailable()) return;
         if (!presenter) presenter = [SpotifastTouchBar new];
         NSString *text = line ? [NSString stringWithUTF8String:line] : nil;
-        [presenter showLine:text ?: @""];
+        [presenter showLine:text ?: @"" reducedMotion:reducedMotion != 0];
     }
 }

@@ -4,11 +4,15 @@
 use std::ffi::CString;
 
 unsafe extern "C" {
-    fn spotifast_touch_bar_sync(enabled: std::ffi::c_int, line: *const std::ffi::c_char);
+    fn spotifast_touch_bar_sync(
+        enabled: std::ffi::c_int,
+        line: *const std::ffi::c_char,
+        reduced_motion: std::ffi::c_int,
+    );
 }
 
 /// Called on AppKit's main thread after each application frame.
-pub fn sync(enabled: bool, line: Option<&str>) {
+pub fn sync(enabled: bool, line: Option<&str>, reduced_motion: bool) {
     let text = line
         .filter(|line| !line.trim().is_empty())
         .and_then(|line| CString::new(line).ok());
@@ -18,6 +22,7 @@ pub fn sync(enabled: bool, line: Option<&str>) {
         spotifast_touch_bar_sync(
             i32::from(enabled),
             text.as_ref().map_or(std::ptr::null(), |line| line.as_ptr()),
+            i32::from(reduced_motion),
         );
     }
 }

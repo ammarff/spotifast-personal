@@ -4166,8 +4166,8 @@ impl App {
     #[cfg(target_os = "macos")]
     fn sync_lyrics_surfaces(&mut self) {
         if !(self.settings.mac_menu_bar_lyrics || self.settings.mac_touch_bar_lyrics) {
-            crate::mac_lyrics_status::sync(false, None);
-            crate::mac_touch_bar::sync(false, None);
+            crate::mac_lyrics_status::sync(false, None, self.motion.reduced());
+            crate::mac_touch_bar::sync(false, None, self.motion.reduced());
             return;
         }
         if let Some(now) = self.now_playing()
@@ -4180,8 +4180,27 @@ impl App {
                 .and_then(|lyrics| lyrics.display_line(now.position_ms))
                 .map(str::to_owned)
         });
-        crate::mac_lyrics_status::sync(self.settings.mac_menu_bar_lyrics, line.as_deref());
-        crate::mac_touch_bar::sync(self.settings.mac_touch_bar_lyrics, line.as_deref());
+        let clean = line.map(|line| {
+            line.chars()
+                .map(|character| {
+                    if character.is_whitespace() {
+                        ' '
+                    } else {
+                        character
+                    }
+                })
+                .collect::<String>()
+        });
+        crate::mac_lyrics_status::sync(
+            self.settings.mac_menu_bar_lyrics,
+            clean.as_deref(),
+            self.motion.reduced(),
+        );
+        crate::mac_touch_bar::sync(
+            self.settings.mac_touch_bar_lyrics,
+            clean.as_deref(),
+            self.motion.reduced(),
+        );
     }
 
     fn lyrics_for_display(&self, now: &NowPlaying) -> Option<&crate::lyrics::Lyrics> {

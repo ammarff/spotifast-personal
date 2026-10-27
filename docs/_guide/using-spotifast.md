@@ -827,6 +827,10 @@ menu bar** and **Lyrics in Touch Bar** switches. The menu-bar switch shows the
 current line beside Spotifast's existing icon, including while its window is
 hidden. The Touch Bar switch shows the line directly on a MacBook with a Touch
 Bar, including while another app is in front. It needs no companion app.
+Long lines scroll horizontally so the text can be read to the end. A new lyric
+line immediately starts at its beginning; **Reduce motion** shows successive
+parts without smooth scrolling. The menu-bar item's tooltip holds the whole
+line.
 Turning the switch off removes Spotifast's Touch Bar display. Both switches
 start off. A line without timing stays still; if a song has no lyrics, both
 displays are empty. The Touch Bar integration uses an unsupported macOS API,
