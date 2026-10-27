@@ -360,6 +360,10 @@ pub struct Settings {
     pub tray_icon: TrayIcon,
     /// Show the interactive Now Playing widget when hovering over the MacBook notch.
     pub mac_notch_widget: bool,
+    /// Show the current lyric in a separate macOS menu-bar item.
+    pub mac_menu_bar_lyrics: bool,
+    /// Supply lyrics to the optional Pock Touch Bar widget.
+    pub mac_touch_bar_lyrics: bool,
     /// macOS: keep Spotifast in the Dock and Cmd-Tab. Off makes it a
     /// menu-bar app, whose menu-bar icon is the way back (#837).
     pub mac_show_in_dock: bool,
@@ -526,6 +530,8 @@ impl Default for Settings {
             keep_playing_in_background: true,
             tray_icon: TrayIcon::Colour,
             mac_notch_widget: false,
+            mac_menu_bar_lyrics: false,
+            mac_touch_bar_lyrics: false,
             mac_show_in_dock: true,
             check_for_updates: true,
             download_updates_automatically: false,
@@ -1142,6 +1148,20 @@ mod tests {
         let encoded = serde_json::to_string(&enabled).unwrap();
         let decoded: Settings = serde_json::from_str(&encoded).unwrap();
         assert!(decoded.mac_notch_widget);
+    }
+
+    #[test]
+    fn mac_lyric_displays_default_off_and_save_independently() {
+        let old: Settings = serde_json::from_str("{}").unwrap();
+        assert!(!old.mac_menu_bar_lyrics && !old.mac_touch_bar_lyrics);
+        let chosen: Settings =
+            serde_json::from_str(r#"{"mac_menu_bar_lyrics":true,"mac_touch_bar_lyrics":false}"#)
+                .unwrap();
+        assert!(chosen.mac_menu_bar_lyrics && !chosen.mac_touch_bar_lyrics);
+        let saved = serde_json::to_string(&chosen).unwrap();
+        let restored: Settings = serde_json::from_str(&saved).unwrap();
+        assert_eq!(restored.mac_menu_bar_lyrics, chosen.mac_menu_bar_lyrics);
+        assert_eq!(restored.mac_touch_bar_lyrics, chosen.mac_touch_bar_lyrics);
     }
 
     #[test]

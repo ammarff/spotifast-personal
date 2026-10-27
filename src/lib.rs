@@ -28,6 +28,8 @@ pub mod lyrics;
 #[cfg(target_os = "macos")]
 pub mod mac_links;
 #[cfg(target_os = "macos")]
+pub mod mac_lyrics_status;
+#[cfg(target_os = "macos")]
 pub mod mac_menu;
 #[cfg(target_os = "macos")]
 pub mod mac_notch;

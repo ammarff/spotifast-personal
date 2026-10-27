@@ -34,6 +34,7 @@ const OK_REPLY: &str = "ok";
 const NOW_REPLY: &str = "now ";
 /// The reply to `devices`, before the snapshot.
 const DEVICES_REPLY: &str = "devices ";
+const LYRICS_REPLY: &str = "lyrics ";
 
 pub enum Outcome {
     /// This process is the only instance. Hold the guard until it exits.
@@ -100,6 +101,8 @@ pub struct Guard {
     now_playing: std::sync::Arc<std::sync::Mutex<String>>,
     /// Last Spotify Connect device snapshot, as one line of JSON.
     devices: std::sync::Arc<std::sync::Mutex<String>>,
+    /// Compact lyric display snapshot for the optional Pock widget.
+    lyrics: std::sync::Arc<std::sync::Mutex<String>>,
 }
 
 impl Guard {
@@ -109,6 +112,7 @@ impl Guard {
             commands: Default::default(),
             now_playing: std::sync::Arc::new(std::sync::Mutex::new(NOTHING_PLAYING.to_owned())),
             devices: std::sync::Arc::new(std::sync::Mutex::new(NO_DEVICES.to_owned())),
+            lyrics: std::sync::Arc::new(std::sync::Mutex::new(NO_LYRICS.to_owned())),
         }
     }
 
@@ -126,6 +130,10 @@ impl Guard {
     pub fn devices_slot(&self) -> std::sync::Arc<std::sync::Mutex<String>> {
         std::sync::Arc::clone(&self.devices)
     }
+
+    pub fn lyrics_slot(&self) -> std::sync::Arc<std::sync::Mutex<String>> {
+        std::sync::Arc::clone(&self.lyrics)
+    }
 }
 
 /// Snapshot value reported when nothing is playing.
@@ -133,6 +141,7 @@ pub const NOTHING_PLAYING: &str = "stopped";
 
 /// Device snapshot used before loading and when Spotify reports no devices.
 pub const NO_DEVICES: &str = "[]";
+pub const NO_LYRICS: &str = r#"{"enabled":false}"#;
 
 /// Where the running instance's lock and channel live: the per-user
 /// runtime directory on Linux (the app's own inside Flatpak), the user's
@@ -171,6 +180,8 @@ pub enum Reply {
     /// `kind`, and `active`, or [`NO_DEVICES`]. JSON safely carries free-text
     /// device names.
     Devices(String),
+    /// One JSON object with the active and next lyric line.
+    Lyrics(String),
 }
 
 /// Sends one verb to the running instance and reads its reply.
@@ -187,6 +198,8 @@ fn reply(line: &str) -> std::io::Result<Reply> {
         Ok(Reply::NowPlaying(snapshot.to_owned()))
     } else if let Some(snapshot) = line.strip_prefix(DEVICES_REPLY) {
         Ok(Reply::Devices(snapshot.to_owned()))
+    } else if let Some(snapshot) = line.strip_prefix(LYRICS_REPLY) {
+        Ok(Reply::Lyrics(snapshot.to_owned()))
     } else {
         Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
@@ -226,6 +239,7 @@ fn claim(
         std::sync::Arc::clone(&guard.commands),
         std::sync::Arc::clone(&guard.now_playing),
         std::sync::Arc::clone(&guard.devices),
+        std::sync::Arc::clone(&guard.lyrics),
         waker.clone(),
     );
     match slot.claim(&request, handler) {
@@ -254,6 +268,7 @@ fn handler(
     commands: std::sync::Arc<std::sync::Mutex<Vec<ControlCommand>>>,
     now_playing: std::sync::Arc<std::sync::Mutex<String>>,
     devices: std::sync::Arc<std::sync::Mutex<String>>,
+    lyrics: std::sync::Arc<std::sync::Mutex<String>>,
     waker: crate::backend::Waker,
 ) -> impl FnMut(&str) -> Option<String> + Send + 'static {
     move |request| {
@@ -284,6 +299,10 @@ fn handler(
                 queue(ControlCommand::RefreshDevices);
                 Some(format!("{DEVICES_REPLY}{snapshot}"))
             }
+            Request::Lyrics => {
+                let snapshot = lyrics.lock().unwrap_or_else(|p| p.into_inner()).clone();
+                Some(format!("{LYRICS_REPLY}{snapshot}"))
+            }
         }
     }
 }
@@ -294,6 +313,7 @@ enum Request {
     Command(ControlCommand),
     NowPlaying,
     Devices,
+    Lyrics,
 }
 
 /// Reads one request line, the channel having already checked and removed
@@ -346,6 +366,7 @@ fn parse(line: &str) -> Option<Request> {
         ("transfer", Some(id)) => ControlCommand::Transfer(device_id(id)?),
         ("nowplaying", None) => return Some(Request::NowPlaying),
         ("devices", None) => return Some(Request::Devices),
+        ("lyrics", None) => return Some(Request::Lyrics),
         _ => return None,
     };
     Some(Request::Command(command))
@@ -604,6 +625,8 @@ mod tests {
         *guard.now_playing.lock().expect("the snapshot") = "playing\tGo\tThe Band".to_owned();
         *guard.devices.lock().expect("the snapshot") =
             r#"[{"id":"abc","name":"Kitchen","kind":"Speaker","active":true}]"#.to_owned();
+        *guard.lyrics.lock().expect("the snapshot") =
+            r#"{"enabled":true,"current":"sing"}"#.to_owned();
         let send = |verb: &str| slot.send(verb).and_then(|line| reply(&line));
 
         // #when
@@ -612,6 +635,7 @@ mod tests {
         let liked = send("save-toggle").expect("a reply");
         let snapshot = send("nowplaying").expect("a reply");
         let listed = send("devices").expect("a reply");
+        let lyric = send("lyrics").expect("a reply");
         let search =
             crate::link::parse(&format!("spotify:search:{}", "東京の音楽 ".repeat(20))).unwrap();
         assert!(search.len() > 256, "exercise a long search link");
@@ -638,6 +662,10 @@ mod tests {
         match listed {
             Reply::Devices(json) => assert!(json.contains("Kitchen")),
             _ => panic!("devices answered with something else"),
+        }
+        match lyric {
+            Reply::Lyrics(json) => assert!(json.contains("sing")),
+            _ => panic!("lyrics answered with something else"),
         }
         // An unknown verb gets no reply at all, so the client sees a closed
         // connection rather than a command it never sent being obeyed.

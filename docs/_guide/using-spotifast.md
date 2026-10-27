@@ -367,6 +367,7 @@ spotifast seek -- -15         spotifast like
 spotifast seek-to 90          spotifast play-uri spotify:playlist:37i9…
 spotifast show                spotifast transfer <device-id>
 spotifast now-playing [--raw] spotifast devices [--raw]
+spotifast lyrics
 spotifast play-search <words> spotifast play-search --kind artist <name>
 ```
 
@@ -385,6 +386,11 @@ loading. New fields are appended to keep older scripts working.
 `devices` lists Spotify Connect devices with the ID first and the active one
 marked with `*`. `--raw` prints JSON. The command refreshes the device list,
 so the first call after startup may be empty. Run it again if needed.
+
+`lyrics` prints a JSON snapshot for the optional macOS Pock widget. It says
+whether **Lyrics in Touch Bar** is enabled and, while a song is available,
+includes the current and next lines with playback position and sample time.
+It returns `{"enabled":false}` when the switch is off.
 
 A verb exits non-zero when Spotifast is not running.
 
@@ -821,6 +827,17 @@ beside it, or in its own tags, and the cover in its tags; otherwise lyrics come
 from LRCLIB by its artist, title, album and length.
 Synced lyrics follow the playing line automatically. Scroll to pause following,
 choose **Follow** to resume it, or choose a line to jump to that part of the song.
+
+On macOS, **Settings > Playback on this computer** has separate **Lyrics in
+menu bar** and **Lyrics in Touch Bar** switches. The menu-bar switch shows the
+current line beside Spotifast's existing icon, including while its window is
+hidden. The Touch Bar switch supplies the optional Pock widget, which stays
+visible when another app is in front. Install [Pock](https://pock.app), run
+`integrations/pock/build.sh` on a Mac with Pock installed, then open the
+resulting `SpotifastLyrics.pock` bundle and add it in Pock's widget manager.
+The widget needs an installed Spotifast.app. Turning its switch off leaves the
+widget in Pock's layout with no lyric text. Both switches start off. A line
+without timing stays still; if a song has no lyrics, both displays are empty.
 
 The expand button, or **F** when no text field has focus, opens lyrics in
 full screen. Press **F** or **Esc**, or choose the shrink button, to return to

@@ -836,6 +836,16 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         )
         .when(!cfg!(target_os = "macos")),
         RowText::new(start_with_computer.clone(), start_detail).when(start_available),
+        RowText::new(
+            gettext(locale, "Lyrics in menu bar"),
+            gettext(locale, "Show the current lyric beside Spotifast's menu-bar icon."),
+        )
+        .when(cfg!(target_os = "macos")),
+        RowText::new(
+            gettext(locale, "Lyrics in Touch Bar"),
+            gettext(locale, "Supply lyrics to the optional Spotifast widget for Pock."),
+        )
+        .when(cfg!(target_os = "macos")),
     ];
     for index in [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 14] {
         playback_rows[index].available &= built_in;
@@ -1062,6 +1072,32 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     &palette,
                     &gettext(locale, "MacBook notch widget"),
                     &mut app.settings.mac_notch_widget,
+                )
+                .changed()
+                {
+                    changed = true;
+                }
+            });
+            #[cfg(target_os = "macos")]
+            filtered_row(ui, &palette, &needle, &playback, &playback_rows[18], |ui| {
+                if widgets::switch(
+                    ui,
+                    &palette,
+                    &gettext(locale, "Lyrics in menu bar"),
+                    &mut app.settings.mac_menu_bar_lyrics,
+                )
+                .changed()
+                {
+                    changed = true;
+                }
+            });
+            #[cfg(target_os = "macos")]
+            filtered_row(ui, &palette, &needle, &playback, &playback_rows[19], |ui| {
+                if widgets::switch(
+                    ui,
+                    &palette,
+                    &gettext(locale, "Lyrics in Touch Bar"),
+                    &mut app.settings.mac_touch_bar_lyrics,
                 )
                 .changed()
                 {

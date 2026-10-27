@@ -69,6 +69,33 @@ impl Lyrics {
             .partition_point(|line| line.at_ms.is_some_and(|at| at <= position_ms));
         started.checked_sub(1)
     }
+
+    /// A compact display uses the first plain line, or the timed line at the
+    /// player's position. A blank timed line intentionally clears the display.
+    pub fn display_line(&self, position_ms: u32) -> Option<&str> {
+        if self.instrumental {
+            return None;
+        }
+        if self.synced {
+            return self
+                .active_line(position_ms)
+                .and_then(|index| self.lines.get(index))
+                .map(|line| line.text.as_str());
+        }
+        self.lines
+            .iter()
+            .find(|line| !line.text.trim().is_empty())
+            .map(|line| line.text.as_str())
+    }
+
+    /// Next timed transition for an external display's local clock.
+    pub fn next_line_at(&self, position_ms: u32) -> Option<(u32, &str)> {
+        self.synced.then_some(())?;
+        self.lines
+            .iter()
+            .find(|line| line.at_ms.is_some_and(|at| at > position_ms))
+            .and_then(|line| line.at_ms.map(|at| (at, line.text.as_str())))
+    }
 }
 
 /// Parses Spotify's `color-lyrics` response.
@@ -1058,6 +1085,43 @@ mod tests {
             instrumental: false,
         };
         assert_eq!(plain.active_line(5_000), None);
+    }
+
+    #[test]
+    fn compact_display_follows_timed_lines_and_keeps_plain_text_still() {
+        let timed = Lyrics {
+            lines: vec![
+                Line {
+                    at_ms: Some(1000),
+                    text: "first".into(),
+                },
+                Line {
+                    at_ms: Some(2000),
+                    text: "".into(),
+                },
+                Line {
+                    at_ms: Some(3000),
+                    text: "third".into(),
+                },
+            ],
+            synced: true,
+            instrumental: false,
+        };
+        assert_eq!(timed.display_line(999), None);
+        assert_eq!(timed.display_line(1500), Some("first"));
+        assert_eq!(timed.display_line(2500), Some(""));
+        assert_eq!(timed.next_line_at(1500), Some((2000, "")));
+        let plain = Lyrics {
+            synced: false,
+            ..timed.clone()
+        };
+        assert_eq!(plain.display_line(99000), Some("first"));
+        assert_eq!(plain.next_line_at(0), None);
+        let instrumental = Lyrics {
+            instrumental: true,
+            ..timed
+        };
+        assert_eq!(instrumental.display_line(1500), None);
     }
 
     #[test]
