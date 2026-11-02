@@ -4203,6 +4203,7 @@ impl App {
         );
     }
 
+    #[cfg(target_os = "macos")]
     fn lyrics_for_display(&self, now: &NowPlaying) -> Option<&crate::lyrics::Lyrics> {
         if self.lyrics_uri.as_deref() != Some(now.uri.as_str()) {
             return None;
