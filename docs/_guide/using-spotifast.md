@@ -325,6 +325,8 @@ Winamp skins do not yet have equivalent accessibility coverage.
 | `S` / `R` | Shuffle / cycle repeat |
 | `Q` | Queue panel, or the queue column in full screen |
 | `F` | Enter or leave full screen lyrics |
+| `V` | Full screen lyrics: MilkDrop or the cover's art behind the words |
+| `N` / `P` | Full screen lyrics: next or previous MilkDrop preset |
 | `Ctrl+F` or `/` | Search |
 | `Ctrl+B` | Show or hide the sidebar |
 | `Alt+←` / `Alt+→` | Back or forward |
@@ -337,7 +339,7 @@ Winamp skins do not yet have equivalent accessibility coverage.
 | `Ctrl+X` | Copy the selected songs' links and remove the songs from your playlist |
 | `Shift+Q` | Add the selected songs to the queue, or show the queue if none are selected |
 | `Shift+N` | Play the selected songs next, on this computer |
-| `Ctrl+M` | Winamp mini player |
+| `Ctrl+M` | Mini player |
 | `Ctrl+Shift+K` | MilkDrop |
 | `Ctrl+,` | Settings |
 | `Ctrl+/` or `?` | All shortcuts |
@@ -811,7 +813,7 @@ let apps remove a description, so clearing the field keeps the current one.
 You can replace it with other text instead.
 
 If Spotify refuses permission, sign in again and approve image uploads. If you
-use a personal Spotify app, reconnect it in Settings as well.
+use your own Client ID, authorize it again in Settings as well.
 
 ## Lyrics
 
@@ -836,14 +838,31 @@ start off. A line without timing stays still; if a song has no lyrics, both
 displays are empty. The Touch Bar integration uses an unsupported macOS API,
 so a future macOS update may require a compatibility fix.
 
-The expand button, or **F** when no text field has focus, opens lyrics in
-full screen. Press **F** or **Esc**, or choose the shrink button, to return to
-your previous window size. Full-screen lyrics
+The expand button in the lyrics panel or at the right of the player bar, or
+**F** when no text field has focus, opens lyrics in full screen. A narrow
+window has no room for the player bar's button. Press **F** or **Esc**, or
+choose the shrink button, to return to your previous window size. Full-screen lyrics
 scroll smoothly and highlight the playing line automatically. Scrolling by
 hand pauses following; choose **Follow** to resume. Since 0.11.0, a wide
 window shows the song's cover beside the lyrics, the two centred together,
 and a song without words, such as an instrumental, shows just its cover in
 the middle of the screen.
+
+Press **V** in full screen lyrics, or click anywhere that isn't a line of
+lyrics or a control, to put MilkDrop behind the words instead of the cover's
+art, and do the same again to bring the art back; Spotifast remembers which you
+chose. **N** and **P** change the preset there. The picture is dimmed as far as
+it takes to keep the words clear, and holds still while the music is paused.
+It uses the presets you have: with none, the art stays. It follows the sound
+after the equalizer and before the volume, like every visualizer.
+
+Click the album art in full screen lyrics to leave MilkDrop alone on the
+screen, edge to edge and at full brightness, even if it was off. Move the mouse
+to see the player's controls for a few seconds; the cursor hides with them.
+Any other click brings everything back as it was, and **Esc** leaves full
+screen. **V**, **N** and **P** still work. A song with no art, or a computer
+with no MilkDrop to show, stays as it is.
+
 Since 0.10.0, quitting while lyrics are full screen no longer leaves
 the next launch stuck in full screen: the window returns to its previous size.
 

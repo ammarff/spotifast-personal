@@ -3204,6 +3204,26 @@ pub fn chips<T: PartialEq + Copy>(
     selected
 }
 
+/// Chips for a list of any length, such as installed skins: they wrap onto as
+/// many rows as they need, so every choice is in sight.
+pub fn wrapped_chips<T: PartialEq + Copy>(
+    ui: &mut Ui,
+    palette: &Palette,
+    options: &[(T, &str)],
+    current: T,
+) -> Option<T> {
+    let mut selected = None;
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        for (value, label) in options {
+            if theme::soft_button(ui, palette, None, label, *value == current).clicked() {
+                selected = Some(*value);
+            }
+        }
+    });
+    selected
+}
+
 /// How wide the fade over a chip row's clipped edge is.
 const CHIP_FADE: f32 = 24.0;
 
@@ -3487,6 +3507,21 @@ pub fn setting_row(
     control: impl FnOnce(&mut Ui),
 ) {
     setting_row_sized(ui, palette, label, description, 0.0, control);
+}
+
+/// A settings row that only says something: with nothing to lay out beside
+/// or under the text, a narrow window leaves no gap where a control would go.
+pub fn setting_note(ui: &mut Ui, palette: &Palette, label: &str, description: &str) {
+    theme::text(ui, label, theme::medium(14.0), palette.text);
+    ui.add(
+        egui::Label::new(
+            egui::RichText::new(description)
+                .font(theme::regular(12.5))
+                .color(palette.secondary),
+        )
+        .wrap(),
+    );
+    ui.add_space(10.0);
 }
 
 /// A settings row whose control needs `control_width` points, such as a

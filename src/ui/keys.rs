@@ -18,7 +18,7 @@ pub(super) const WINAMP_SHORTCUT: &str = platform_shortcut("Ctrl+M", "Cmd+Shift+
 pub(super) const MILKDROP_SHORTCUT: &str = platform_shortcut("Ctrl+Shift+K", "Cmd+Shift+K");
 
 pub fn handle(app: &mut App, ctx: &egui::Context) {
-    if app.show_soloist_onboarding() || app.soloist_waiting() {
+    if app.soloist_view() != crate::app::SoloistView::App {
         // Setup owns navigation, but the window must still close and quit.
         // Consume shifted variants first so Cmd+Shift+Q never becomes Quit.
         ctx.input_mut(|input| {
@@ -152,8 +152,20 @@ pub fn handle(app: &mut App, ctx: &egui::Context) {
             key(
                 Modifiers::NONE,
                 Key::F,
-                Action::SetLyricsFullscreen(app.lyrics_fullscreen.is_none()),
+                if app.milkdrop_framed() {
+                    Action::MilkdropFullscreen
+                } else {
+                    Action::SetLyricsFullscreen(app.lyrics_fullscreen.is_none())
+                },
             );
+            #[cfg(feature = "milkdrop")]
+            if app.lyrics_fullscreen.is_some() {
+                key(Modifiers::NONE, Key::V, Action::ToggleLyricsMilkdrop);
+                if app.milkdrop_behind_lyrics() {
+                    key(Modifiers::NONE, Key::N, Action::MilkdropEffect(1));
+                    key(Modifiers::NONE, Key::P, Action::MilkdropEffect(-1));
+                }
+            }
         }
     });
     if !editing_text
@@ -292,6 +304,16 @@ pub fn shortcuts(locale: Locale) -> Vec<(Cow<'static, str>, Cow<'static, str>)> 
         (keys("Q"), gettext(locale, "Show the queue")),
         (keys("L"), gettext(locale, "Show the lyrics")),
         (keys("F"), gettext(locale, "Full screen lyrics")),
+        #[cfg(feature = "milkdrop")]
+        (
+            keys("V"),
+            gettext(locale, "Full screen lyrics: MilkDrop behind the words"),
+        ),
+        #[cfg(feature = "milkdrop")]
+        (
+            keys("N  /  P"),
+            gettext(locale, "Full screen lyrics: next or previous preset"),
+        ),
         (keys("Esc"), gettext(locale, "Lyrics: leave full screen")),
         (
             keys("Shift+↑  /  Shift+↓"),
@@ -361,7 +383,7 @@ pub fn shortcuts(locale: Locale) -> Vec<(Cow<'static, str>, Cow<'static, str>)> 
             keys(platform_shortcut("Ctrl+Shift+B", "Cmd+Shift+B")),
             gettext(locale, "Go to the playing album"),
         ),
-        (keys(WINAMP_SHORTCUT), gettext(locale, "Winamp mini player")),
+        (keys(WINAMP_SHORTCUT), gettext(locale, "Mini player")),
         (
             keys(MILKDROP_SHORTCUT),
             gettext(locale, "MilkDrop, under the mini player"),
@@ -652,10 +674,10 @@ mod tests {
         };
         if cfg!(target_os = "macos") {
             assert_eq!(label("Home"), "Cmd+Shift+H");
-            assert_eq!(label("Winamp mini player"), "Cmd+Shift+M");
+            assert_eq!(label("Mini player"), "Cmd+Shift+M");
         } else {
             assert_eq!(label("Home"), "Ctrl+H");
-            assert_eq!(label("Winamp mini player"), "Ctrl+M");
+            assert_eq!(label("Mini player"), "Ctrl+M");
         }
     }
 
